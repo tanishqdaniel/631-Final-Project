@@ -134,7 +134,7 @@ lm_rmse <- sqrt(mean((lm_predictions - test_data$price)^2))
 print(paste("Linear Regression RMSE:", lm_rmse))
 ```
 
-```{r multi-regression}
+```{r over all multi-regression}
 mlm_model <- lm(price ~ bed + bath + acre_lot + state + house_size, data = train_data)
 
 summary(mlm_model)
@@ -144,4 +144,50 @@ mlm_predictions <- predict(mlm_model, newdata = test_data)
 mlm_rmse <- sqrt(mean((mlm_predictions - test_data$price)^2))
 print(paste("Multiple Linear Regression RMSE:", mlm_rmse))
 ```
+
+# Breaking Model down by State
+```{r selecting states}
+unique_states <- unique(data_clean$state)
+
+data_by_state <- list()
+
+for (state in unique_states) {
+  subset_data <- data_clean[data_clean$state == state, ]
+  data_by_state[[state]] <- subset_data
+}
+```
+
+```{r state model performance}
+model_rmse <- numeric(length(unique_states))
+model_r_squared <- numeric(length(unique_states))
+
+for (i in seq_along(unique_states)) {
+  state <- unique_states[i]
+  state_data <- data_by_state[[state]]
+  set.seed(91200) 
+  split <- sample.split(state_data$price, SplitRatio = 0.8)
+  train_data_sub <- state_data[split, ]
+  test_data_sub <- state_data[!split, ]
+  
+  
+  mlm_model_sub <- lm(price ~ bed + bath + acre_lot + house_size, data = train_data_sub)
+  
+ 
+  mlm_predictions_sub <- predict(mlm_model, newdata = test_data_sub)
+  
+  mlm_r_squared_sub <- summary(mlm_model_sub)$r.squared
+ 
+  mlm_rmse_sub <- sqrt(mean((mlm_predictions_sub - test_data_sub$price)^2))
+  
+  model_rmse[i] <- mlm_rmse_sub
+  model_r_squared[i] <- mlm_r_squared_sub
+}
+
+performance_df <- data.frame(state = unique_states, RMSE = model_rmse, R_squared = model_r_squared)
+
+# Print model performance for each state
+print(performance_df)
+
+```
+
 
