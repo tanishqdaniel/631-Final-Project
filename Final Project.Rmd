@@ -1,0 +1,147 @@
+---
+title: "Final Project"
+author: "Tanishq Daniel"
+date: "2024-03-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidymodels)
+library(ggplot2)
+library(tidyverse)
+library(readr)
+library(skimr)
+library(caTools)
+library(corrplot)
+```
+
+```{r load data}
+data <- read_csv("data/realtor-data.csv")
+
+str(data)
+skim(data)
+```
+
+```{r clean data}
+# dropping all data with any missing values
+data_clean <- na.omit(data)
+data_clean <- distinct(data_clean)
+data_clean$zip_code <- as.character(data_clean$zip_code)
+
+dim(data_clean)
+```
+
+```{r drop states}
+#dropping states with less than 10 observations
+state_counts <- table(data_clean$state)
+states_to_drop <- names(state_counts[state_counts < 10])
+data_clean <- data_clean[!(data_clean$state %in% states_to_drop), ]
+
+dim(data_clean)
+```
+
+```{r check outlier}
+numerical_vars <- sapply(data_clean, is.numeric)
+boxplot_data <- data_clean[, numerical_vars]
+boxplot(boxplot_data)
+```
+
+```{r price outliers}
+# Create a boxplot of the price variable
+boxplot(data_clean$price, main = "Boxplot of Price")
+
+outliers <- boxplot.stats(data_clean$price)$out
+
+outliers_sorted <- sort(outliers, decreasing = TRUE)
+
+top_10_outliers <- outliers_sorted[1:10]
+
+top_10_outlier_rows <- data_clean[data_clean$price %in% top_10_outliers, ]
+
+print(top_10_outlier_rows)
+```
+Not dropping any outliers because, I think the price of them is justified based on location 
+as well as the number of beds, baths and lot size 
+
+```{r split into train/test}
+
+set.seed(91200)
+
+split <- sample.split(data_clean$price, SplitRatio = 0.8)
+train_data <- data_clean[split, ]
+test_data <- data_clean[!split, ]
+
+dim(train_data)
+dim(test_data)
+```
+
+## Exploratory Data Analysis (EDA)
+
+```{r getting random data}
+set.seed(91200)
+
+sample_size <- 10000  
+train_data_sample <- data.frame(train_data[sample(nrow(train_data), sample_size), ])
+
+dim(train_data_sample)
+```
+
+```{r checking numeric co-relations}
+numeric_data <- train_data_sample[, sapply(train_data_sample, is.numeric)]
+
+correlation_matrix <- cor(numeric_data)
+
+corrplot(correlation_matrix, method = "circle")
+
+correlation_with_price <- cor(numeric_data[, -which(names(numeric_data) %in% c("price"))], numeric_data$price)
+
+print(correlation_with_price)
+```
+
+```{r}
+
+ggplot(data = train_data_sample, aes(x = state, y = price)) +
+  geom_boxplot() +
+  labs(title = "Distribution of Average Prices by State",
+       x = "State",
+       y = "Price") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+```{r checking states}
+# Count the number of observations for each state
+state_counts <- table(data_clean$state)
+
+# Print the counts
+print(state_counts)
+```
+
+## Models 
+
+### Linear Model
+```{r Linear model}
+# Fit linear regression model
+lm_model1 <- lm(price ~ bed+bath+state+house_size, data = train_data)
+
+summary(lm_model1)
+
+
+# Predict on testing data
+lm_predictions <- predict(lm_model1, newdata = test_data)
+
+# Evaluate performance (e.g., calculate RMSE)
+lm_rmse <- sqrt(mean((lm_predictions - test_data$price)^2))
+print(paste("Linear Regression RMSE:", lm_rmse))
+```
+
+```{r multi-regression}
+mlm_model <- lm(price ~ bed + bath + acre_lot + state + house_size, data = train_data)
+
+summary(mlm_model)
+
+mlm_predictions <- predict(mlm_model, newdata = test_data)
+
+mlm_rmse <- sqrt(mean((mlm_predictions - test_data$price)^2))
+print(paste("Multiple Linear Regression RMSE:", mlm_rmse))
+```
+
